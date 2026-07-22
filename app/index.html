@@ -6,6 +6,7 @@
 <title>Amanah App — Prividium Chain Console</title>
 <meta name="description" content="Interact with the Amanah Prividium chain — role-based access through a Proxy RPC, private transfers, zk-batch proofs anchored to Ethereum.">
 <script defer src="https://cdn.jsdelivr.net/npm/ethers@6.13.2/dist/ethers.umd.min.js"></script>
+<script async defer src="https://accounts.google.com/gsi/client"></script>
 <style>
   :root {
     --ink: #0d1f1a;
@@ -143,6 +144,17 @@
 </head>
 <body>
 
+<div id="authGate" style="display:none;position:fixed;inset:0;z-index:100;align-items:center;justify-content:center;background:linear-gradient(160deg,var(--emerald-deep),var(--emerald));padding:1.5rem">
+  <div style="background:var(--white);border-top:3px solid var(--gold);border-radius:4px;padding:2.2rem 2.4rem;max-width:400px;text-align:center">
+    <svg width="40" height="40" viewBox="0 0 26 26"><path d="M13 1 L25 13 L13 25 L1 13 Z" fill="none" stroke="#c9a24b" stroke-width="1.6"/><circle cx="13" cy="13" r="5.5" fill="none" stroke="#0e5b43" stroke-width="1.6"/></svg>
+    <h2 style="margin:0.8rem 0 0.3rem;font-family:Georgia,serif;font-weight:400;color:var(--emerald-deep)">Amanah App</h2>
+    <p style="font-size:0.85rem;color:var(--ink-soft);margin-bottom:1.3rem">Sign in with Google to continue.
+      Administrators get the full chain console; everyone else sees their balance and network stats.</p>
+    <div id="gBtn" style="display:flex;justify-content:center"></div>
+    <p id="authMsg" style="font-size:0.8rem;color:var(--bad);margin-top:0.9rem"></p>
+  </div>
+</div>
+
 <header>
   <div class="bar">
     <a class="logo" href="../">
@@ -150,6 +162,8 @@
       <span>Amanah App<small>Prividium chain console</small></span>
     </a>
     <div class="spacer"></div>
+    <span class="pill" id="userChip" style="display:none"></span>
+    <button id="signOut" class="ghost" style="display:none;border-color:rgba(230,211,163,0.5);color:var(--gold-soft)">Sign out</button>
     <span class="pill" id="netPill">Built-in chain</span>
     <select id="modeSel" title="Network mode">
       <option value="sim">Built-in Prividium chain (in-browser)</option>
@@ -161,6 +175,7 @@
 
 <nav class="tabs">
   <div class="tabs-inner">
+    <div class="tab hidden" data-tab="overview" id="tabOverview">Overview</div>
     <div class="tab active" data-tab="dash">Dashboard</div>
     <div class="tab" data-tab="transfer" id="tabTransfer">Transfer</div>
     <div class="tab" data-tab="contract">Contracts</div>
@@ -173,6 +188,38 @@
 </nav>
 
 <main>
+
+  <div class="note" id="authSetupNote" style="display:none">
+    <strong>Google sign-in is not configured yet</strong>, so the console is currently open to anyone with the link.
+    To lock it down: create a Google OAuth <em>Web application</em> Client ID with authorized JavaScript origin
+    <span class="mono">https://pkaller.github.io</span>, then put it in <span class="mono">AUTH.clientId</span> in app/index.html.
+  </div>
+
+  <!-- ============ OVERVIEW (viewer) ============ -->
+  <section class="panel" id="panel-overview">
+    <h2 id="ovHello">Welcome</h2>
+    <p class="sub">Amanah (AMN) — the private, Sharia-compliant, yield-bearing stablecoin.
+      Here's the public picture, and your own balance.</p>
+    <div class="grid g3">
+      <div class="card stat"><h3>Total supply</h3><b id="ovSupply">—</b><span>AMN</span></div>
+      <div class="card stat"><h3>Transactions settled</h3><b id="ovTx">—</b><span>Off-chain, private</span></div>
+      <div class="card stat"><h3>Batches anchored</h3><b id="ovBatches">—</b><span>Proofs on Ethereum</span></div>
+    </div>
+    <div class="grid g2" style="margin-top:1.1rem">
+      <div class="card">
+        <h3>Your AMN</h3>
+        <p style="font-size:0.85rem;color:var(--ink-soft);margin-bottom:0.9rem">
+          Connect MetaMask in the Token tab to see your AMN balance and send transfers — that's your money, always in your hands.</p>
+        <button id="ovGoToken">Open Token &middot; MetaMask</button>
+      </div>
+      <div class="card">
+        <h3>Privacy model</h3>
+        <p style="font-size:0.85rem;color:var(--ink-soft)">Transactions execute off-chain in a private environment.
+          Only cryptographic validity proofs are anchored to Ethereum — the network stays verifiable
+          without exposing anyone's activity.</p>
+      </div>
+    </div>
+  </section>
 
   <!-- ============ DASHBOARD ============ -->
   <section class="panel active" id="panel-dash">
@@ -362,6 +409,14 @@
         </div>
         <button id="accCreate">Create account</button>
         <div id="accOut" style="margin-top:0.7rem;font-size:0.85rem"></div>
+      </div>
+      <div class="card">
+        <h3>Google access — who sees the console</h3>
+        <div id="adminEmails" class="mono" style="margin-bottom:0.7rem"></div>
+        <p style="font-size:0.8rem;color:var(--ink-soft)">Everyone signing in with another Google account gets the
+          viewer experience (balance + stats) only. Because this app is fully static, the admin list ships in the
+          code — to invite someone permanently, add their email to <span class="mono">AUTH.admins</span> in
+          app/index.html (or ask for it to be added) and redeploy.</p>
       </div>
       <div class="card">
         <h3>Chain controls</h3>
@@ -722,8 +777,8 @@ function refreshDash() {
   $("aTxCount").textContent = S.txs.length;
   $("aBatch").textContent = S.batches.length;
 
-  // role-driven tab visibility
-  $("tabAdmin").classList.toggle("hidden", !isAdmin);
+  // role-driven tab visibility (viewer mode always hides admin)
+  $("tabAdmin").classList.toggle("hidden", !isAdmin || viewerMode);
   $("sealBtn").disabled = !isAdmin;
   refreshBatches(); refreshAccTable();
 }
@@ -1034,9 +1089,101 @@ async function genericCall(write) {
 $("gRead").onclick = () => genericCall(false);
 $("gWrite").onclick = () => genericCall(true);
 
+/* ---------- Google sign-in & access control ----------
+   Client-side gating for a static site: admins (AUTH.admins) get the full
+   console; every other Google account gets the viewer experience.
+   Set AUTH.clientId to a Google OAuth *Web application* Client ID whose
+   authorized JavaScript origin is this site's origin. Empty = open access. */
+const AUTH = {
+  clientId: "",                       // ← paste Google OAuth client ID here
+  admins: ["pkaller@gmail.com"],      // Google accounts with full console access
+  sessionHours: 24,
+};
+const AUTHKEY = "amanah-auth";
+let gUser = null, viewerMode = false;
+
+function decodeJwt(t) {
+  const p = t.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
+  return JSON.parse(atob(p));
+}
+const adminEmails = () => AUTH.admins.map(e => e.toLowerCase());
+
+function activateTab(name) {
+  document.querySelectorAll(".tab").forEach(x => x.classList.toggle("active", x.dataset.tab === name));
+  document.querySelectorAll(".panel").forEach(x => x.classList.toggle("active", x.id === "panel-" + name));
+}
+
+function applyAccess() {
+  $("adminEmails").innerHTML = AUTH.admins.map(e => "&#9670; " + e).join("<br>");
+  $("authSetupNote").style.display = AUTH.clientId ? "none" : "";
+  if (!AUTH.clientId) {                     // sign-in not configured yet → open access
+    viewerMode = false;
+    refreshAll();
+    return;
+  }
+  if (!gUser) { $("authGate").style.display = "flex"; return; }
+  $("authGate").style.display = "none";
+  $("userChip").style.display = ""; $("userChip").textContent = gUser.email;
+  $("signOut").style.display = "";
+  viewerMode = !adminEmails().includes(gUser.email.toLowerCase());
+  document.querySelectorAll(".tab").forEach(t => {
+    if (viewerMode) t.classList.toggle("hidden", !["overview", "token"].includes(t.dataset.tab));
+    else t.classList.toggle("hidden", t.dataset.tab === "overview");
+  });
+  $("modeSel").style.display = viewerMode ? "none" : "";
+  $("identitySel").style.display = viewerMode ? "none" : "";
+  if (viewerMode) {
+    $("ovHello").textContent = "Welcome, " + (gUser.name || gUser.email);
+    $("ovSupply").textContent = fmt(S.totalSupply);
+    $("ovTx").textContent = S.txs.length;
+    $("ovBatches").textContent = S.batches.length;
+    activateTab("overview");
+    log(`Signed in as ${gUser.email} — viewer access (balance & stats).`);
+  } else {
+    activateTab("dash");
+    log(`Signed in as ${gUser.email} — administrator access.`);
+  }
+  refreshAll();
+}
+
+function onGoogleCredential(resp) {
+  try {
+    const p = decodeJwt(resp.credential);
+    if (!p.email) throw new Error("no email in Google credential");
+    gUser = { email: p.email, name: p.name || "", exp: Date.now() + AUTH.sessionHours * 3600e3 };
+    localStorage.setItem(AUTHKEY, JSON.stringify(gUser));
+    applyAccess();
+  } catch (e) { $("authMsg").textContent = "Sign-in failed: " + e.message; }
+}
+
+function initAuth() {
+  if (!AUTH.clientId) { applyAccess(); return; }
+  try { const s = JSON.parse(localStorage.getItem(AUTHKEY)); if (s && s.exp > Date.now()) gUser = s; } catch (e) {}
+  if (gUser) { applyAccess(); return; }
+  $("authGate").style.display = "flex";
+  let tries = 0;
+  const t = setInterval(() => {
+    if (window.google && google.accounts) {
+      clearInterval(t);
+      google.accounts.id.initialize({ client_id: AUTH.clientId, callback: onGoogleCredential });
+      google.accounts.id.renderButton($("gBtn"), { theme: "outline", size: "large", width: 280 });
+    } else if (++tries > 60) {
+      clearInterval(t);
+      $("authMsg").textContent = "Couldn't load Google Sign-In — check your connection and reload.";
+    }
+  }, 250);
+}
+
+$("signOut").onclick = () => {
+  localStorage.removeItem(AUTHKEY);
+  try { google.accounts.id.disableAutoSelect(); } catch (e) {}
+  location.reload();
+};
+$("ovGoToken").onclick = () => activateTab("token");
+
 /* ---------- boot ---------- */
-load(); loadCfg(); refreshAll();
-log("Amanah Prividium chain ready — Proxy RPC enforcing Trader / Auditor / Admin roles. Switch identities (top right) to see permissions change.");
+load(); loadCfg(); initAuth();
+log("Amanah Prividium chain ready — Proxy RPC enforcing Trader / Auditor / Admin roles.");
 </script>
 </body>
 </html>
