@@ -164,6 +164,7 @@
     <div class="tab active" data-tab="dash">Dashboard</div>
     <div class="tab" data-tab="transfer" id="tabTransfer">Transfer</div>
     <div class="tab" data-tab="contract">Contracts</div>
+    <div class="tab" data-tab="token">Token &middot; MetaMask</div>
     <div class="tab" data-tab="batches">Batches &amp; Proofs</div>
     <div class="tab" data-tab="admin" id="tabAdmin">Admin</div>
     <div class="tab" data-tab="console">RPC Console</div>
@@ -270,6 +271,56 @@
         <button id="gWrite">Write (tx)</button>
       </div>
       <div class="mono" id="gOut" style="margin-top:0.6rem"></div>
+    </div>
+  </section>
+
+  <!-- ============ TOKEN / METAMASK ============ -->
+  <section class="panel" id="panel-token">
+    <h2>AMN in MetaMask</h2>
+    <p class="sub">Put real AMN in your wallet: deploy the AMN ERC-20 contract to a public testnet from your own
+      MetaMask (you pay testnet gas — free from a faucet), add it to your token list, and transfer.
+      Balances and transfers show up in MetaMask like any token.</p>
+    <div class="grid g2">
+      <div class="card">
+        <h3>1 &middot; Wallet &amp; network</h3>
+        <div class="row" style="margin-bottom:0.7rem">
+          <button id="tkConnect">Connect MetaMask</button>
+          <button class="ghost" id="tkSepolia">Switch to Sepolia testnet</button>
+        </div>
+        <div class="mono" id="tkWallet">not connected</div>
+        <p style="font-size:0.78rem;color:var(--ink-soft);margin-top:0.8rem">
+          Need test ETH for gas? Sepolia faucets:
+          <a href="https://cloud.google.com/application/web3/faucet/ethereum/sepolia" target="_blank" rel="noopener">Google Cloud</a> ·
+          <a href="https://sepoliafaucet.com" target="_blank" rel="noopener">Alchemy</a>
+        </p>
+      </div>
+      <div class="card">
+        <h3>2 &middot; AMN token contract</h3>
+        <div class="row" style="margin-bottom:0.7rem">
+          <button id="tkDeploy">Deploy AMN (mints 1,000,000 to you)</button>
+          <button class="ghost" id="tkWatch">Add AMN to MetaMask</button>
+        </div>
+        <div class="field"><label>Token address (auto-filled after deploy — or paste an existing AMN address)</label>
+          <input type="text" id="tkAddr" placeholder="0x…"></div>
+        <div class="mono" id="tkDeployOut"></div>
+      </div>
+    </div>
+    <div class="grid g2" style="margin-top:1.1rem">
+      <div class="card">
+        <h3>3 &middot; Your AMN balance</h3>
+        <div class="row"><button class="ghost" id="tkBal">Refresh balance</button></div>
+        <div class="stat" style="margin-top:0.6rem"><b id="tkBalVal">—</b><span>AMN on this network</span></div>
+      </div>
+      <div class="card">
+        <h3>4 &middot; Transfer AMN</h3>
+        <div class="field"><label>To address</label><input type="text" id="tkTo" placeholder="0x…"></div>
+        <div class="field"><label>Amount (AMN)</label><input type="number" id="tkAmt" min="0" step="any" placeholder="100"></div>
+        <div class="row">
+          <button id="tkSend">Transfer via MetaMask</button>
+          <button class="ghost" id="tkMint">Mint (deployer only)</button>
+        </div>
+        <div class="mono" id="tkTxOut" style="margin-top:0.6rem"></div>
+      </div>
     </div>
   </section>
 
@@ -849,6 +900,121 @@ $("mmAdd").onclick = async () => {
     log("Prividium network added to wallet.");
   } catch (e) { $("mmOut").textContent = "✗ " + e.message; }
 };
+
+/* ---------- AMN ERC-20 on a real testnet via MetaMask (dependency-free) ----------
+   Contract: AmanahToken — name "Amanah", symbol "AMN", 18 decimals.
+   Constructor mints 1,000,000 AMN to the deployer; deployer can mint more.
+   Bytecode compiled with solc 0.8.24 (optimizer on) and verified on a local EVM. */
+const AMN_BYTECODE = "0x608060405234801561000f575f80fd5b50600180546001600160a01b031916339081179091556100399069d3c21bcecceda100000061003e565b6100e8565b805f8082825461004e91906100c3565b90915550506001600160a01b0382165f908152600260205260408120805483929061007a9084906100c3565b90915550506040518181526001600160a01b038316905f907fddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef9060200160405180910390a35050565b808201808211156100e257634e487b7160e01b5f52601160045260245ffd5b92915050565b6106f2806100f55f395ff3fe608060405234801561000f575f80fd5b50600436106100a6575f3560e01c806340c10f191161006e57806340c10f191461014b57806370a08231146101605780638da5cb5b1461017f57806395d89b41146101aa578063a9059cbb146101cc578063dd62ed3e146101df575f80fd5b806306fdde03146100aa578063095ea7b3146100e557806318160ddd1461010857806323b872dd1461011e578063313ce56714610131575b5f80fd5b6100cf60405180604001604052806006815260200165082dac2dcc2d60d31b81525081565b6040516100dc9190610569565b60405180910390f35b6100f86100f33660046105d0565b610209565b60405190151581526020016100dc565b6101105f5481565b6040519081526020016100dc565b6100f861012c3660046105f8565b610275565b610139601281565b60405160ff90911681526020016100dc565b61015e6101593660046105d0565b61032a565b005b61011061016e366004610631565b60026020525f908152604090205481565b600154610192906001600160a01b031681565b6040516001600160a01b0390911681526020016100dc565b6100cf6040518060400160405280600381526020016220a6a760e91b81525081565b6100f86101da3660046105d0565b610383565b6101106101ed366004610651565b600360209081525f928352604080842090915290825290205481565b335f8181526003602090815260408083206001600160a01b038716808552925280832085905551919290917f8c5be1e5ebec7d5bd14f71427d1e84f3dd0314c0f7b2291e5b200ac8c7c3b925906102639086815260200190565b60405180910390a35060015b92915050565b6001600160a01b0383165f908152600360209081526040808320338452909152812054828110156102de5760405162461bcd60e51b815260206004820152600e60248201526d414d4e3a20616c6c6f77616e636560901b60448201526064015b60405180910390fd5b5f198114610314576102f08382610696565b6001600160a01b0386165f9081526003602090815260408083203384529091529020555b61031f858585610398565b506001949350505050565b6001546001600160a01b031633146103755760405162461bcd60e51b815260206004820152600e60248201526d20a6a71d103737ba1037bbb732b960911b60448201526064016102d5565b61037f82826104e4565b5050565b5f61038f338484610398565b50600192915050565b6001600160a01b0382166103e25760405162461bcd60e51b8152602060048201526011602482015270414d4e3a207a65726f206164647265737360781b60448201526064016102d5565b6001600160a01b0383165f908152600260205260409020548111156104385760405162461bcd60e51b815260206004820152600c60248201526b414d4e3a2062616c616e636560a01b60448201526064016102d5565b6001600160a01b0383165f908152600260205260408120805483929061045f908490610696565b90915550506001600160a01b0382165f908152600260205260408120805483929061048b9084906106a9565b92505081905550816001600160a01b0316836001600160a01b03167fddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef836040516104d791815260200190565b60405180910390a3505050565b805f808282546104f491906106a9565b90915550506001600160a01b0382165f90815260026020526040812080548392906105209084906106a9565b90915550506040518181526001600160a01b038316905f907fddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef9060200160405180910390a35050565b5f602080835283518060208501525f5b8181101561059557858101830151858201604001528201610579565b505f604082860101526040601f19601f8301168501019250505092915050565b80356001600160a01b03811681146105cb575f80fd5b919050565b5f80604083850312156105e1575f80fd5b6105ea836105b5565b946020939093013593505050565b5f805f6060848603121561060a575f80fd5b610613846105b5565b9250610621602085016105b5565b9150604084013590509250925092565b5f60208284031215610641575f80fd5b61064a826105b5565b9392505050565b5f8060408385031215610662575f80fd5b61066b836105b5565b9150610679602084016105b5565b90509250929050565b634e487b7160e01b5f52601160045260245ffd5b8181038181111561026f5761026f610682565b8082018082111561026f5761026f61068256fea2646970667358221220982b362075ca556bbeea10f270570ff55fb168b185fbb9cc0dc74b243f81ed0164736f6c63430008180033";
+const TK_KEY = "amanah-token-addr";
+let tkAccount = null, tkChain = null;
+
+const pad32 = (h) => h.replace(/^0x/, "").padStart(64, "0");
+function toWei(s) {
+  s = String(s).trim();
+  if (!/^\d+(\.\d+)?$/.test(s)) throw new Error("enter a positive amount");
+  const [i, f = ""] = s.split(".");
+  return BigInt(i) * 10n ** 18n + BigInt((f + "0".repeat(18)).slice(0, 18));
+}
+function fromWei(x) {
+  const n = BigInt(x), i = n / 10n ** 18n;
+  const f = (n % 10n ** 18n).toString().padStart(18, "0").slice(0, 4).replace(/0+$/, "");
+  return f ? `${i}.${f}` : i.toString();
+}
+function mm(method, params) {
+  if (!window.ethereum) throw new Error("MetaMask not detected — install the extension");
+  return window.ethereum.request(params === undefined ? { method } : { method, params });
+}
+async function tkRefreshWallet() {
+  const cid = await mm("eth_chainId");
+  tkChain = parseInt(cid, 16);
+  const names = { 11155111: "Sepolia", 1: "Ethereum mainnet", 300: "zkSync Sepolia", 324: "zkSync Era", 17000: "Holesky" };
+  let warn = tkChain === 1 ? "\n⚠ this is MAINNET — switch to Sepolia for testing" : "";
+  $("tkWallet").textContent = `connected ${tkAccount}\nnetwork ${names[tkChain] || "chain"} (id ${tkChain})${warn}`;
+  const saved = JSON.parse(localStorage.getItem(TK_KEY) || "{}")[tkChain];
+  if (saved) $("tkAddr").value = saved;
+}
+$("tkConnect").onclick = async () => {
+  try { const [a] = await mm("eth_requestAccounts"); tkAccount = a; await tkRefreshWallet(); log(`MetaMask connected: ${short(a)}`); }
+  catch (e) { $("tkWallet").textContent = "✗ " + e.message; }
+};
+$("tkSepolia").onclick = async () => {
+  try {
+    await mm("wallet_switchEthereumChain", [{ chainId: "0xaa36a7" }]);
+    if (tkAccount) await tkRefreshWallet();
+    log("Switched wallet to Sepolia.");
+  } catch (e) { $("tkWallet").textContent = "✗ " + e.message; }
+};
+if (window.ethereum && window.ethereum.on) {
+  window.ethereum.on("chainChanged", () => { if (tkAccount) tkRefreshWallet(); });
+  window.ethereum.on("accountsChanged", (a) => { tkAccount = a[0] || null; if (tkAccount) tkRefreshWallet(); });
+}
+
+async function waitReceipt(hash, out) {
+  for (let i = 0; i < 60; i++) {
+    const r = await mm("eth_getTransactionReceipt", [hash]);
+    if (r) return r;
+    out.textContent = `tx ${short(hash)} — waiting for confirmation… (${(i + 1) * 3}s)`;
+    await new Promise(res => setTimeout(res, 3000));
+  }
+  throw new Error("timed out waiting for receipt — check the tx in a block explorer");
+}
+
+$("tkDeploy").onclick = async () => {
+  const out = $("tkDeployOut");
+  try {
+    if (!tkAccount) throw new Error("connect MetaMask first");
+    out.textContent = "confirm the deployment in MetaMask…";
+    const hash = await mm("eth_sendTransaction", [{ from: tkAccount, data: AMN_BYTECODE }]);
+    const r = await waitReceipt(hash, out);
+    if (r.status !== "0x1") throw new Error("deployment reverted");
+    const addr = r.contractAddress;
+    $("tkAddr").value = addr;
+    const map = JSON.parse(localStorage.getItem(TK_KEY) || "{}"); map[tkChain] = addr;
+    localStorage.setItem(TK_KEY, JSON.stringify(map));
+    out.textContent = `✓ AMN deployed at ${addr}\n1,000,000 AMN minted to you. Now click “Add AMN to MetaMask”.`;
+    log(`AMN ERC-20 deployed on chain ${tkChain}: ${short(addr)}`);
+  } catch (e) { out.textContent = "✗ " + e.message; }
+};
+
+$("tkWatch").onclick = async () => {
+  try {
+    const address = $("tkAddr").value.trim();
+    if (!address) throw new Error("no token address — deploy first, or paste one");
+    await mm("wallet_watchAsset", { type: "ERC20", options: { address, symbol: "AMN", decimals: 18 } });
+    log("AMN added to MetaMask token list.");
+  } catch (e) { $("tkDeployOut").textContent = "✗ " + e.message; }
+};
+
+$("tkBal").onclick = async () => {
+  try {
+    if (!tkAccount) throw new Error("connect MetaMask first");
+    const token = $("tkAddr").value.trim();
+    if (!token) throw new Error("no token address");
+    const r = await mm("eth_call", [{ to: token, data: "0x70a08231" + pad32(tkAccount) }, "latest"]);
+    $("tkBalVal").textContent = fromWei(r);
+  } catch (e) { $("tkBalVal").textContent = "—"; $("tkTxOut").textContent = "✗ " + e.message; }
+};
+
+async function erc20Write(selector, label) {
+  const out = $("tkTxOut");
+  try {
+    if (!tkAccount) throw new Error("connect MetaMask first");
+    const token = $("tkAddr").value.trim();
+    if (!token) throw new Error("no token address");
+    const to = $("tkTo").value.trim();
+    if (!/^0x[0-9a-fA-F]{40}$/.test(to)) throw new Error("invalid recipient address");
+    const amt = toWei($("tkAmt").value);
+    out.textContent = "confirm in MetaMask…";
+    const hash = await mm("eth_sendTransaction", [{ from: tkAccount, to: token, data: selector + pad32(to) + pad32(amt.toString(16)) }]);
+    const r = await waitReceipt(hash, out);
+    out.textContent = r.status === "0x1" ? `✓ ${label} confirmed\ntx ${hash}` : `✗ ${label} reverted\ntx ${hash}`;
+    log(`${label} ${$("tkAmt").value} AMN → ${short(to)} ${r.status === "0x1" ? '<span class="ok">ok</span>' : '<span class="err">REVERTED</span>'}`);
+    $("tkBal").click();
+  } catch (e) { out.textContent = "✗ " + e.message; }
+}
+$("tkSend").onclick = () => erc20Write("0xa9059cbb", "transfer");
+$("tkMint").onclick = () => erc20Write("0x40c10f19", "mint");
 
 /* generic contract caller (external mode, ethers) */
 async function genericCall(write) {
