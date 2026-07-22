@@ -1,0 +1,876 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Amanah App — Prividium Chain Console</title>
+<meta name="description" content="Interact with the Amanah Prividium chain — role-based access through a Proxy RPC, private transfers, zk-batch proofs anchored to Ethereum.">
+<script defer src="https://cdn.jsdelivr.net/npm/ethers@6.13.2/dist/ethers.umd.min.js"></script>
+<style>
+  :root {
+    --ink: #0d1f1a;
+    --ink-soft: #33473f;
+    --emerald: #0e5b43;
+    --emerald-deep: #093c2d;
+    --emerald-bright: #17936c;
+    --gold: #c9a24b;
+    --gold-soft: #e6d3a3;
+    --sand: #faf6ee;
+    --sand-deep: #f1e9d8;
+    --white: #ffffff;
+    --bad: #9c5030;
+    --max: 1180px;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: "Helvetica Neue", Arial, sans-serif;
+    color: var(--ink); background: var(--sand); line-height: 1.55;
+  }
+  .serif { font-family: "Georgia", "Times New Roman", serif; }
+
+  /* ---------- Top bar ---------- */
+  header {
+    background: linear-gradient(150deg, var(--emerald-deep), var(--emerald));
+    color: var(--sand); border-bottom: 2px solid var(--gold);
+  }
+  .bar {
+    max-width: var(--max); margin: 0 auto; padding: 0.8rem 1.2rem;
+    display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;
+  }
+  .logo {
+    display: flex; align-items: center; gap: 0.55rem;
+    font-weight: 700; letter-spacing: 0.13em; text-transform: uppercase;
+    color: var(--gold-soft); text-decoration: none; font-size: 1rem;
+  }
+  .logo small {
+    display: block; font-weight: 400; letter-spacing: 0.06em; text-transform: none;
+    font-size: 0.68rem; color: rgba(233,242,236,0.7);
+  }
+  .spacer { flex: 1; }
+  .pill {
+    font-size: 0.72rem; letter-spacing: 0.08em; text-transform: uppercase;
+    padding: 0.3rem 0.7rem; border-radius: 999px;
+    border: 1px solid rgba(230,211,163,0.5); color: var(--gold-soft);
+  }
+  select, input[type=text], input[type=number], textarea {
+    font: inherit; font-size: 0.88rem; color: var(--ink);
+    background: var(--white); border: 1px solid var(--sand-deep);
+    border-radius: 3px; padding: 0.5rem 0.6rem;
+  }
+  header select { background: rgba(255,255,255,0.95); }
+  textarea { width: 100%; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 0.8rem; }
+  button {
+    font: inherit; font-size: 0.8rem; letter-spacing: 0.07em; text-transform: uppercase;
+    padding: 0.55rem 1.1rem; border-radius: 2px; border: none; cursor: pointer;
+    background: var(--gold); color: var(--emerald-deep); font-weight: 600;
+  }
+  button:hover { background: var(--gold-soft); }
+  button.ghost {
+    background: transparent; border: 1px solid var(--emerald);
+    color: var(--emerald-deep); font-weight: 500;
+  }
+  button.ghost:hover { background: var(--sand-deep); }
+  button:disabled { opacity: 0.45; cursor: not-allowed; }
+
+  /* ---------- Tabs ---------- */
+  nav.tabs {
+    background: var(--white); border-bottom: 1px solid var(--sand-deep);
+    position: sticky; top: 0; z-index: 20;
+  }
+  .tabs-inner { max-width: var(--max); margin: 0 auto; padding: 0 1.2rem; display: flex; gap: 0.3rem; overflow-x: auto; }
+  .tab {
+    padding: 0.85rem 1rem; font-size: 0.78rem; letter-spacing: 0.08em; text-transform: uppercase;
+    color: var(--ink-soft); cursor: pointer; border-bottom: 2px solid transparent; white-space: nowrap;
+  }
+  .tab:hover { color: var(--emerald); }
+  .tab.active { color: var(--emerald-deep); border-bottom-color: var(--gold); font-weight: 600; }
+  .tab.hidden { display: none; }
+
+  /* ---------- Layout ---------- */
+  main { max-width: var(--max); margin: 0 auto; padding: 1.6rem 1.2rem 4rem; }
+  .panel { display: none; }
+  .panel.active { display: block; }
+  h2 { font-family: Georgia, serif; font-weight: 400; font-size: 1.5rem; color: var(--emerald-deep); margin-bottom: 0.4rem; }
+  .sub { color: var(--ink-soft); font-size: 0.92rem; margin-bottom: 1.4rem; max-width: 70ch; }
+  .grid { display: grid; gap: 1.1rem; }
+  .g2 { grid-template-columns: 1fr 1fr; }
+  .g3 { grid-template-columns: repeat(3, 1fr); }
+  .g4 { grid-template-columns: repeat(4, 1fr); }
+  @media (max-width: 860px) { .g2, .g3, .g4 { grid-template-columns: 1fr; } }
+  .card {
+    background: var(--white); border: 1px solid var(--sand-deep);
+    border-top: 3px solid var(--gold); border-radius: 3px; padding: 1.2rem 1.2rem 1.3rem;
+  }
+  .card h3 {
+    font-size: 0.78rem; letter-spacing: 0.1em; text-transform: uppercase;
+    color: var(--emerald-deep); margin-bottom: 0.7rem;
+  }
+  .stat b { display: block; font-family: Georgia, serif; font-weight: 400; font-size: 1.7rem; color: var(--emerald); }
+  .stat span { font-size: 0.72rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-soft); }
+  .mono { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 0.78rem; word-break: break-all; }
+  .field { margin-bottom: 0.85rem; }
+  .field label { display: block; font-size: 0.72rem; letter-spacing: 0.09em; text-transform: uppercase; color: var(--ink-soft); margin-bottom: 0.3rem; }
+  .field input, .field select { width: 100%; }
+  .row { display: flex; gap: 0.6rem; align-items: center; flex-wrap: wrap; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.82rem; background: var(--white); }
+  th, td { text-align: left; padding: 0.55rem 0.7rem; border-bottom: 1px solid var(--sand-deep); vertical-align: top; }
+  th { font-size: 0.68rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-soft); background: var(--sand); }
+  .badge {
+    display: inline-block; font-size: 0.64rem; letter-spacing: 0.08em; text-transform: uppercase;
+    padding: 0.15rem 0.5rem; border-radius: 999px; margin-right: 0.25rem;
+    background: var(--sand-deep); color: var(--ink-soft);
+  }
+  .badge.admin  { background: var(--emerald-deep); color: var(--gold-soft); }
+  .badge.trader { background: var(--emerald-bright); color: var(--white); }
+  .badge.auditor{ background: var(--gold); color: var(--emerald-deep); }
+  .ok { color: var(--emerald-bright); font-weight: 600; }
+  .err { color: var(--bad); font-weight: 600; }
+  .note {
+    background: var(--sand-deep); border-left: 3px solid var(--gold);
+    padding: 0.7rem 0.9rem; font-size: 0.83rem; color: var(--ink-soft);
+    border-radius: 0 3px 3px 0; margin-bottom: 1.2rem;
+  }
+  #log {
+    background: var(--emerald-deep); color: #cfe6d8; border-radius: 3px;
+    font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 0.75rem;
+    padding: 0.9rem 1rem; max-height: 230px; overflow-y: auto; white-space: pre-wrap; word-break: break-word;
+  }
+  #log .t { color: var(--gold-soft); }
+  #consoleOut { background: var(--emerald-deep); color: #cfe6d8; min-height: 180px; }
+  footer { border-top: 1px solid var(--sand-deep); padding: 1.4rem 1.2rem 2rem; font-size: 0.75rem; color: var(--ink-soft); }
+  footer .inner { max-width: var(--max); margin: 0 auto; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="bar">
+    <a class="logo" href="../">
+      <svg width="26" height="26" viewBox="0 0 26 26"><path d="M13 1 L25 13 L13 25 L1 13 Z" fill="none" stroke="#c9a24b" stroke-width="1.6"/><circle cx="13" cy="13" r="5.5" fill="none" stroke="#e6d3a3" stroke-width="1.6"/></svg>
+      <span>Amanah App<small>Prividium chain console</small></span>
+    </a>
+    <div class="spacer"></div>
+    <span class="pill" id="netPill">Built-in chain</span>
+    <select id="modeSel" title="Network mode">
+      <option value="sim">Built-in Prividium chain (in-browser)</option>
+      <option value="ext">External Proxy RPC (MetaMask)</option>
+    </select>
+    <select id="identitySel" title="Identity"></select>
+  </div>
+</header>
+
+<nav class="tabs">
+  <div class="tabs-inner">
+    <div class="tab active" data-tab="dash">Dashboard</div>
+    <div class="tab" data-tab="transfer" id="tabTransfer">Transfer</div>
+    <div class="tab" data-tab="contract">Contracts</div>
+    <div class="tab" data-tab="batches">Batches &amp; Proofs</div>
+    <div class="tab" data-tab="admin" id="tabAdmin">Admin</div>
+    <div class="tab" data-tab="console">RPC Console</div>
+    <div class="tab" data-tab="network">Network</div>
+  </div>
+</nav>
+
+<main>
+
+  <!-- ============ DASHBOARD ============ -->
+  <section class="panel active" id="panel-dash">
+    <h2>Dashboard</h2>
+    <p class="sub">Your view of the Amanah Prividium chain. Every call below passes through the
+      <strong>Proxy RPC</strong>, which enforces your role's permissions before anything reaches the chain.</p>
+    <div class="grid g4">
+      <div class="card stat"><h3>Identity</h3><b id="dIdent" style="font-size:1.05rem">—</b><span id="dRoles"></span></div>
+      <div class="card stat"><h3>AMN Balance</h3><b id="dBal">—</b><span>Native token</span></div>
+      <div class="card stat"><h3>Block Height</h3><b id="dBlock">—</b><span>Chain ID <span id="dChain">—</span></span></div>
+      <div class="card stat"><h3>Batches Proven</h3><b id="dBatches">—</b><span>Anchored to Ethereum</span></div>
+    </div>
+    <div class="grid g2" style="margin-top:1.1rem">
+      <div class="card">
+        <h3>Latest anchored state root</h3>
+        <div class="mono" id="dRoot">No batch sealed yet.</div>
+      </div>
+      <div class="card">
+        <h3>Privacy model</h3>
+        <p style="font-size:0.85rem;color:var(--ink-soft)">Off-chain execution keeps transaction data private.
+          After each batch, a zk-style validity proof and state root are anchored to Ethereum —
+          anyone can verify integrity, no one learns your transactions.</p>
+      </div>
+    </div>
+    <div class="card" style="margin-top:1.1rem">
+      <h3>Your recent transactions <span style="text-transform:none;letter-spacing:0;color:var(--ink-soft);font-weight:400">(admins see all — participants see their own)</span></h3>
+      <div id="dTxs"></div>
+    </div>
+  </section>
+
+  <!-- ============ TRANSFER ============ -->
+  <section class="panel" id="panel-transfer">
+    <h2>Transfer AMN</h2>
+    <p class="sub">Requires the <span class="badge trader">Trader</span> role. The Proxy RPC rejects transfers from
+      identities without it — try switching to the Auditor to see the rule enforced.</p>
+    <div class="grid g2">
+      <div class="card">
+        <h3>Send</h3>
+        <div class="field"><label>To</label><select id="txTo"></select></div>
+        <div class="field"><label>Amount (AMN)</label><input type="number" id="txAmt" min="0" step="any" placeholder="100"></div>
+        <div class="field"><label>Memo (private — never leaves the chain)</label><input type="text" id="txMemo" placeholder="e.g. Remittance — July"></div>
+        <button id="txSend">Send via Proxy RPC</button>
+        <div id="txResult" style="margin-top:0.8rem;font-size:0.85rem"></div>
+      </div>
+      <div class="card">
+        <h3>What happens</h3>
+        <ol style="font-size:0.85rem;color:var(--ink-soft);padding-left:1.2rem;display:grid;gap:0.5rem">
+          <li>Proxy RPC authenticates you and checks the <em>Trader</em> role.</li>
+          <li>The transaction executes off-chain in the private environment — seconds, negligible cost.</li>
+          <li>It joins the next batch; sealing the batch produces a validity proof + state root.</li>
+          <li>The proof is anchored to Ethereum. Your transfer details stay private.</li>
+        </ol>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ CONTRACTS ============ -->
+  <section class="panel" id="panel-contract">
+    <h2>Smart Contracts</h2>
+    <p class="sub">Fine-grained permissions apply per contract and per function. The built-in AMN token contract
+      shows this: anyone can read, Traders can <code>transfer</code>, only Admins can <code>mint</code>.</p>
+    <div class="grid g2">
+      <div class="card">
+        <h3>AMN Token — read</h3>
+        <div class="row" style="margin-bottom:0.8rem">
+          <button class="ghost" id="cTotal">totalSupply()</button>
+          <button class="ghost" id="cMyBal">balanceOf(me)</button>
+        </div>
+        <div class="field"><label>balanceOf(address) — Admin only for others</label>
+          <div class="row"><select id="cWho" style="flex:1"></select><button class="ghost" id="cBalOf">Read</button></div>
+        </div>
+        <div class="mono" id="cReadOut" style="margin-top:0.4rem"></div>
+      </div>
+      <div class="card">
+        <h3>AMN Token — write</h3>
+        <div class="field"><label>mint(to, amount) — requires Admin</label>
+          <div class="row">
+            <select id="cMintTo" style="flex:1"></select>
+            <input type="number" id="cMintAmt" placeholder="amount" style="width:110px">
+            <button id="cMint">Mint</button>
+          </div>
+        </div>
+        <div class="mono" id="cWriteOut" style="margin-top:0.4rem"></div>
+        <p style="font-size:0.78rem;color:var(--ink-soft);margin-top:0.9rem">
+          In External RPC mode, use the generic caller below against any deployed contract.</p>
+      </div>
+    </div>
+    <div class="card" style="margin-top:1.1rem">
+      <h3>Generic contract caller — External RPC mode</h3>
+      <div class="field"><label>Contract address</label><input type="text" id="gAddr" placeholder="0x…"></div>
+      <div class="field"><label>ABI (JSON array)</label><textarea id="gAbi" rows="3" placeholder='[{"name":"balanceOf","type":"function","stateMutability":"view","inputs":[{"name":"a","type":"address"}],"outputs":[{"type":"uint256"}]}]'></textarea></div>
+      <div class="row">
+        <input type="text" id="gFn" placeholder="function name" style="flex:0 0 180px">
+        <input type="text" id="gArgs" placeholder='args, comma-separated' style="flex:1">
+        <button class="ghost" id="gRead">Read</button>
+        <button id="gWrite">Write (tx)</button>
+      </div>
+      <div class="mono" id="gOut" style="margin-top:0.6rem"></div>
+    </div>
+  </section>
+
+  <!-- ============ BATCHES ============ -->
+  <section class="panel" id="panel-batches">
+    <h2>Batches &amp; Proofs</h2>
+    <p class="sub">The auditor's view: validity proofs and state roots for every sealed batch — with
+      <strong>selective disclosure</strong>. Aggregate facts are visible; individual transaction data is not.</p>
+    <div class="row" style="margin-bottom:1rem">
+      <button id="sealBtn">Seal pending batch → prove → anchor</button>
+      <span id="pendingInfo" style="font-size:0.82rem;color:var(--ink-soft)"></span>
+    </div>
+    <div class="grid g3" style="margin-bottom:1.1rem">
+      <div class="card stat"><h3>Total supply</h3><b id="aSupply">—</b><span>Disclosed fact</span></div>
+      <div class="card stat"><h3>Transactions settled</h3><b id="aTxCount">—</b><span>Disclosed fact</span></div>
+      <div class="card stat"><h3>Batches anchored</h3><b id="aBatch">—</b><span>On Ethereum (simulated)</span></div>
+    </div>
+    <div class="card">
+      <h3>Sealed batches</h3>
+      <div id="batchList"></div>
+    </div>
+  </section>
+
+  <!-- ============ ADMIN ============ -->
+  <section class="panel" id="panel-admin">
+    <h2>Admin</h2>
+    <p class="sub">Requires the <span class="badge admin">Admin</span> role: manage users, assign roles, control access.
+      You decide who can act, what they see, and when proofs are posted.</p>
+    <div class="grid g2">
+      <div class="card">
+        <h3>Create account</h3>
+        <div class="field"><label>Display name</label><input type="text" id="accName" placeholder="e.g. Worker — Kuala Lumpur"></div>
+        <div class="field"><label>Roles</label>
+          <div class="row">
+            <label style="text-transform:none;font-size:0.85rem"><input type="checkbox" id="accTrader" checked> Trader</label>
+            <label style="text-transform:none;font-size:0.85rem"><input type="checkbox" id="accAuditor"> Auditor</label>
+            <label style="text-transform:none;font-size:0.85rem"><input type="checkbox" id="accAdmin"> Admin</label>
+          </div>
+        </div>
+        <button id="accCreate">Create account</button>
+        <div id="accOut" style="margin-top:0.7rem;font-size:0.85rem"></div>
+      </div>
+      <div class="card">
+        <h3>Chain controls</h3>
+        <div class="row" style="margin-bottom:0.7rem"><button class="ghost" id="resetChain">Reset chain to genesis</button></div>
+        <p style="font-size:0.8rem;color:var(--ink-soft)">Chain state persists in this browser (localStorage).
+          Reset wipes all accounts, transactions, and batches back to genesis.</p>
+      </div>
+    </div>
+    <div class="card" style="margin-top:1.1rem">
+      <h3>Accounts &amp; roles</h3>
+      <div id="accTable"></div>
+    </div>
+  </section>
+
+  <!-- ============ CONSOLE ============ -->
+  <section class="panel" id="panel-console">
+    <h2>RPC Console</h2>
+    <p class="sub">Raw JSON-RPC against the Proxy RPC. In built-in mode, calls hit the in-browser chain;
+      in External mode they go to your configured endpoint. Role rules apply either way the proxy defines them.</p>
+    <div class="card">
+      <div class="row" style="margin-bottom:0.7rem">
+        <select id="rpcMethod" style="flex:0 0 260px">
+          <option>eth_chainId</option>
+          <option>eth_blockNumber</option>
+          <option>eth_getBalance</option>
+          <option>eth_sendTransaction</option>
+          <option>zks_L1BatchNumber</option>
+          <option>zks_getL1BatchDetails</option>
+          <option>amanah_auditSummary</option>
+          <option value="_custom">custom…</option>
+        </select>
+        <input type="text" id="rpcCustom" placeholder="custom method" style="display:none;flex:0 0 200px">
+        <input type="text" id="rpcParams" placeholder='params JSON, e.g. ["0xabc…"] or [1]' style="flex:1">
+        <button id="rpcSend">Send</button>
+      </div>
+      <textarea id="consoleOut" rows="10" readonly></textarea>
+    </div>
+  </section>
+
+  <!-- ============ NETWORK ============ -->
+  <section class="panel" id="panel-network">
+    <h2>Network</h2>
+    <p class="sub">The built-in chain runs the Prividium architecture entirely in your browser.
+      When your hosted Prividium deployment is live, switch to External mode and point the app at its Proxy RPC.</p>
+    <div class="grid g2">
+      <div class="card">
+        <h3>Built-in chain</h3>
+        <table>
+          <tr><td>Name</td><td>Amanah Prividium (in-browser testnet)</td></tr>
+          <tr><td>Chain ID</td><td class="mono">4801</td></tr>
+          <tr><td>Currency</td><td>AMN</td></tr>
+          <tr><td>Execution</td><td>Off-chain, in this browser</td></tr>
+          <tr><td>Anchoring</td><td>Simulated Ethereum (proof + state root per batch)</td></tr>
+          <tr><td>Persistence</td><td>localStorage — private to this browser</td></tr>
+        </table>
+      </div>
+      <div class="card">
+        <h3>External Proxy RPC</h3>
+        <div class="field"><label>Proxy RPC URL</label><input type="text" id="cfgRpc" placeholder="https://rpc.your-prividium-deployment.example"></div>
+        <div class="field"><label>Chain ID (decimal)</label><input type="number" id="cfgChain" placeholder="e.g. 300"></div>
+        <div class="field"><label>Currency symbol</label><input type="text" id="cfgSym" value="ETH"></div>
+        <div class="field"><label>Block explorer URL (optional)</label><input type="text" id="cfgExp" placeholder="https://explorer.example"></div>
+        <div class="row">
+          <button id="cfgSave" class="ghost">Save config</button>
+          <button id="mmConnect">Connect MetaMask</button>
+          <button id="mmAdd" class="ghost">Add network to wallet</button>
+        </div>
+        <div id="mmOut" style="margin-top:0.7rem;font-size:0.85rem" class="mono"></div>
+      </div>
+    </div>
+  </section>
+
+  <div class="card" style="margin-top:1.6rem">
+    <h3>Activity log</h3>
+    <div id="log"></div>
+  </div>
+
+</main>
+
+<footer><div class="inner">
+  Amanah App — Prividium chain console. The built-in chain is an in-browser implementation of the
+  Prividium architecture (Proxy RPC, roles, zk-style batch proofs, simulated Ethereum anchoring) for
+  demonstration on a testnet basis. It holds no real funds. &copy; 2026 Amanah Holdings.
+</div></footer>
+
+<script>
+"use strict";
+/* =====================================================================
+   Amanah Prividium — in-browser private zk-L2 chain + console
+   Architecture per deployment doc:
+   - Proxy RPC front door enforcing role-based access (Trader/Auditor/Admin)
+   - Off-chain execution, per-batch state root + validity proof
+   - Proof "anchored" to (simulated) Ethereum for public verifiability
+   ===================================================================== */
+
+const LS_KEY = "amanah-prividium-v1";
+const CFG_KEY = "amanah-prividium-cfg";
+const CHAIN_ID = 4801;
+
+/* ---------- utils ---------- */
+const $ = (id) => document.getElementById(id);
+const enc = new TextEncoder();
+async function sha256(s) {
+  const h = await crypto.subtle.digest("SHA-256", enc.encode(s));
+  return "0x" + [...new Uint8Array(h)].map(b => b.toString(16).padStart(2, "0")).join("");
+}
+function randAddr() {
+  const b = crypto.getRandomValues(new Uint8Array(20));
+  return "0x" + [...b].map(x => x.toString(16).padStart(2, "0")).join("");
+}
+const short = (a) => a ? a.slice(0, 8) + "…" + a.slice(-6) : "—";
+const fmt = (n) => Number(n).toLocaleString("en-US", { maximumFractionDigits: 4 });
+function log(msg, cls) {
+  const el = $("log");
+  const t = new Date().toLocaleTimeString();
+  el.innerHTML = `<span class="t">[${t}]</span> ${msg}\n` + el.innerHTML;
+}
+
+/* ---------- chain state ---------- */
+let S = null; // chain state
+let me = null; // current identity address
+
+function genesis() {
+  const admin = randAddr(), trader = randAddr(), auditor = randAddr();
+  return {
+    chainId: CHAIN_ID,
+    accounts: {
+      [admin]:  { name: "Treasury (genesis)", roles: ["admin", "trader"], balance: 1_000_000, nonce: 0 },
+      [trader]: { name: "Demo Trader",        roles: ["trader"],          balance: 5_000,     nonce: 0 },
+      [auditor]:{ name: "Demo Auditor",       roles: ["auditor"],         balance: 0,         nonce: 0 },
+    },
+    totalSupply: 1_005_000,
+    blocks: [],       // {number, ts, txHash}
+    txs: [],          // {hash, from, to, amount, memo, ts, block, batch}
+    batches: [],      // {number, txHashes, txCount, stateRoot, proof, l1TxHash, ts}
+    pending: [],      // tx hashes not yet batched
+  };
+}
+function save() { localStorage.setItem(LS_KEY, JSON.stringify(S)); }
+function load() {
+  try { const raw = localStorage.getItem(LS_KEY); if (raw) { S = JSON.parse(raw); return; } } catch (e) {}
+  S = genesis(); save();
+}
+
+/* ---------- Proxy RPC (role enforcement lives HERE, per the deployment doc) ---------- */
+function roles(addr) { return (S.accounts[addr] || {}).roles || []; }
+function requireRole(caller, ...allowed) {
+  const r = roles(caller);
+  if (!allowed.some(x => r.includes(x)))
+    throw new Error(`Proxy RPC denied: requires role [${allowed.join(" or ")}], caller has [${r.join(", ") || "none"}]`);
+}
+
+async function proxyRpc(method, params, caller) {
+  switch (method) {
+    case "eth_chainId": return "0x" + S.chainId.toString(16);
+    case "eth_blockNumber": return "0x" + S.blocks.length.toString(16);
+
+    case "eth_getBalance": {
+      const target = (params && params[0]) ? params[0].toLowerCase() : caller;
+      const key = Object.keys(S.accounts).find(a => a.toLowerCase() === target);
+      if (!key) throw new Error("unknown account");
+      if (key !== caller) requireRole(caller, "admin"); // privacy: only admin reads others
+      return fmt(S.accounts[key].balance) + " AMN";
+    }
+
+    case "eth_sendTransaction": {
+      requireRole(caller, "trader", "admin");
+      const { to, amount, memo } = params[0];
+      const amt = Number(amount);
+      if (!S.accounts[to]) throw new Error("unknown recipient");
+      if (!(amt > 0)) throw new Error("amount must be > 0");
+      if (S.accounts[caller].balance < amt) throw new Error("insufficient AMN balance");
+      S.accounts[caller].balance -= amt;
+      S.accounts[to].balance += amt;
+      S.accounts[caller].nonce += 1;
+      const ts = Date.now();
+      const hash = await sha256(`tx|${caller}|${to}|${amt}|${S.accounts[caller].nonce}|${ts}`);
+      const block = { number: S.blocks.length + 1, ts, txHash: hash };
+      S.blocks.push(block);
+      S.txs.push({ hash, from: caller, to, amount: amt, memo: memo || "", ts, block: block.number, batch: null });
+      S.pending.push(hash);
+      save();
+      return hash;
+    }
+
+    case "amn_mint": {
+      requireRole(caller, "admin");
+      const { to, amount } = params[0];
+      const amt = Number(amount);
+      if (!S.accounts[to]) throw new Error("unknown recipient");
+      if (!(amt > 0)) throw new Error("amount must be > 0");
+      S.accounts[to].balance += amt;
+      S.totalSupply += amt;
+      const ts = Date.now();
+      const hash = await sha256(`mint|${to}|${amt}|${ts}`);
+      const block = { number: S.blocks.length + 1, ts, txHash: hash };
+      S.blocks.push(block);
+      S.txs.push({ hash, from: "0xMINT", to, amount: amt, memo: "mint", ts, block: block.number, batch: null });
+      S.pending.push(hash);
+      save();
+      return hash;
+    }
+
+    case "admin_createAccount": {
+      requireRole(caller, "admin");
+      const { name, roles: rr } = params[0];
+      const addr = randAddr();
+      S.accounts[addr] = { name: name || "Unnamed", roles: rr, balance: 0, nonce: 0 };
+      save();
+      return addr;
+    }
+
+    case "admin_setRoles": {
+      requireRole(caller, "admin");
+      const { addr, roles: rr } = params[0];
+      if (!S.accounts[addr]) throw new Error("unknown account");
+      S.accounts[addr].roles = rr;
+      save();
+      return true;
+    }
+
+    case "zks_sealBatch": {
+      requireRole(caller, "admin"); // "you decide when proofs are posted"
+      if (!S.pending.length) throw new Error("no pending transactions to batch");
+      const txHashes = [...S.pending];
+      // state root = commitment over full private state
+      const stateRoot = await sha256("state|" + JSON.stringify({
+        a: Object.entries(S.accounts).map(([k, v]) => [k, v.balance, v.nonce]),
+        supply: S.totalSupply, height: S.blocks.length,
+      }));
+      // zk-style validity proof over (state root, batch contents)
+      const proof = await sha256("zkproof|" + stateRoot + "|" + txHashes.join(","));
+      const l1TxHash = await sha256("l1anchor|" + proof);
+      const batch = {
+        number: S.batches.length + 1, txHashes, txCount: txHashes.length,
+        stateRoot, proof, l1TxHash, ts: Date.now(),
+      };
+      S.batches.push(batch);
+      S.txs.forEach(t => { if (txHashes.includes(t.hash)) t.batch = batch.number; });
+      S.pending = [];
+      save();
+      return batch;
+    }
+
+    case "zks_L1BatchNumber": {
+      requireRole(caller, "auditor", "admin");
+      return S.batches.length;
+    }
+
+    case "zks_getL1BatchDetails": {
+      requireRole(caller, "auditor", "admin");
+      const n = Number(params && params[0]);
+      const b = S.batches[n - 1];
+      if (!b) throw new Error("unknown batch " + n);
+      // selective disclosure: proof data yes, tx contents no (unless admin)
+      const out = { number: b.number, txCount: b.txCount, stateRoot: b.stateRoot, proof: b.proof, l1TxHash: b.l1TxHash, ts: b.ts };
+      if (roles(caller).includes("admin")) out.txHashes = b.txHashes;
+      return out;
+    }
+
+    case "zks_verifyBatch": {
+      // public verifiability — anyone can verify a proof
+      const n = Number(params && params[0]);
+      const b = S.batches[n - 1];
+      if (!b) throw new Error("unknown batch " + n);
+      const expect = await sha256("zkproof|" + b.stateRoot + "|" + b.txHashes.join(","));
+      return { batch: n, valid: expect === b.proof, stateRoot: b.stateRoot };
+    }
+
+    case "amanah_auditSummary": {
+      requireRole(caller, "auditor", "admin");
+      return { totalSupply: S.totalSupply, txCount: S.txs.length, batches: S.batches.length,
+               accounts: Object.keys(S.accounts).length, note: "selective disclosure: no per-user data included" };
+    }
+
+    default:
+      throw new Error("Proxy RPC: method not allowed or unknown: " + method);
+  }
+}
+
+/* ---------- external mode (real Proxy RPC via MetaMask / fetch) ---------- */
+let mode = "sim";
+let cfg = { rpc: "", chain: "", sym: "ETH", exp: "" };
+let extAccount = null;
+
+function loadCfg() {
+  try { const c = JSON.parse(localStorage.getItem(CFG_KEY)); if (c) cfg = c; } catch (e) {}
+  $("cfgRpc").value = cfg.rpc || ""; $("cfgChain").value = cfg.chain || "";
+  $("cfgSym").value = cfg.sym || "ETH"; $("cfgExp").value = cfg.exp || "";
+}
+function saveCfg() {
+  cfg = { rpc: $("cfgRpc").value.trim(), chain: $("cfgChain").value.trim(),
+          sym: $("cfgSym").value.trim() || "ETH", exp: $("cfgExp").value.trim() };
+  localStorage.setItem(CFG_KEY, JSON.stringify(cfg));
+  log("External config saved.");
+}
+async function extRpc(method, params) {
+  if (window.ethereum && extAccount) return window.ethereum.request({ method, params });
+  if (!cfg.rpc) throw new Error("No Proxy RPC URL configured (Network tab)");
+  const res = await fetch(cfg.rpc, {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }),
+  });
+  const j = await res.json();
+  if (j.error) throw new Error(j.error.message || JSON.stringify(j.error));
+  return j.result;
+}
+
+/* ---------- UI ---------- */
+function myRoles() { return roles(me); }
+function rolesBadges(rr) {
+  return rr.map(r => `<span class="badge ${r}">${r}</span>`).join("") || '<span class="badge">none</span>';
+}
+
+function refreshIdentity() {
+  const sel = $("identitySel");
+  sel.innerHTML = "";
+  Object.entries(S.accounts).forEach(([addr, a]) => {
+    const o = document.createElement("option");
+    o.value = addr;
+    o.textContent = `${a.name} — ${a.roles.join("/") || "no role"}`;
+    sel.appendChild(o);
+  });
+  if (!me || !S.accounts[me]) me = Object.keys(S.accounts)[0];
+  sel.value = me;
+}
+
+function fillAccountSelects() {
+  ["txTo", "cWho", "cMintTo"].forEach(id => {
+    const sel = $(id); sel.innerHTML = "";
+    Object.entries(S.accounts).forEach(([addr, a]) => {
+      const o = document.createElement("option");
+      o.value = addr; o.textContent = `${a.name} (${short(addr)})`;
+      sel.appendChild(o);
+    });
+  });
+}
+
+function refreshDash() {
+  const a = S.accounts[me];
+  $("dIdent").textContent = a ? a.name : "—";
+  $("dRoles").innerHTML = rolesBadges(myRoles());
+  $("dBal").textContent = a ? fmt(a.balance) : "—";
+  $("dBlock").textContent = S.blocks.length;
+  $("dChain").textContent = S.chainId;
+  $("dBatches").textContent = S.batches.length;
+  const last = S.batches[S.batches.length - 1];
+  $("dRoot").textContent = last ? `${last.stateRoot}\nproof ${last.proof.slice(0, 26)}…  →  Ethereum tx ${short(last.l1TxHash)}` : "No batch sealed yet.";
+
+  const isAdmin = myRoles().includes("admin");
+  const mine = S.txs.filter(t => isAdmin || t.from === me || t.to === me).slice(-8).reverse();
+  $("dTxs").innerHTML = mine.length ? `<table><tr><th>Tx</th><th>From</th><th>To</th><th>AMN</th><th>Memo</th><th>Batch</th></tr>` +
+    mine.map(t => `<tr><td class="mono">${short(t.hash)}</td><td>${nameOf(t.from)}</td><td>${nameOf(t.to)}</td><td>${fmt(t.amount)}</td><td>${t.memo || "—"}</td><td>${t.batch ? "#" + t.batch : '<span style="color:var(--gold)">pending</span>'}</td></tr>`).join("") + "</table>"
+    : '<p style="font-size:0.85rem;color:var(--ink-soft)">No transactions visible to this identity yet.</p>';
+
+  $("pendingInfo").textContent = `${S.pending.length} transaction(s) pending in the next batch`;
+  $("aSupply").textContent = fmt(S.totalSupply);
+  $("aTxCount").textContent = S.txs.length;
+  $("aBatch").textContent = S.batches.length;
+
+  // role-driven tab visibility
+  $("tabAdmin").classList.toggle("hidden", !isAdmin);
+  $("sealBtn").disabled = !isAdmin;
+  refreshBatches(); refreshAccTable();
+}
+function nameOf(addr) {
+  if (addr === "0xMINT") return "⟨mint⟩";
+  const a = S.accounts[addr];
+  return a ? a.name : short(addr);
+}
+
+function refreshBatches() {
+  const el = $("batchList");
+  if (!S.batches.length) { el.innerHTML = '<p style="font-size:0.85rem;color:var(--ink-soft)">No batches sealed yet. Send a transfer, then seal the batch.</p>'; return; }
+  el.innerHTML = [...S.batches].reverse().map(b => `
+    <div style="border-bottom:1px solid var(--sand-deep);padding:0.8rem 0">
+      <div class="row" style="justify-content:space-between">
+        <strong>Batch #${b.number}</strong>
+        <span style="font-size:0.75rem;color:var(--ink-soft)">${new Date(b.ts).toLocaleString()} · ${b.txCount} tx</span>
+      </div>
+      <div class="mono" style="margin:0.3rem 0 0.5rem">
+        state root&nbsp; ${b.stateRoot}<br>
+        zk proof&nbsp;&nbsp;&nbsp; ${b.proof}<br>
+        L1 anchor&nbsp;&nbsp; ${b.l1TxHash} <span style="color:var(--ink-soft)">(simulated Ethereum)</span>
+      </div>
+      <button class="ghost" data-verify="${b.number}">Verify proof</button>
+      <span id="verify-${b.number}" style="font-size:0.82rem;margin-left:0.5rem"></span>
+    </div>`).join("");
+  el.querySelectorAll("[data-verify]").forEach(btn => btn.onclick = async () => {
+    const n = btn.dataset.verify;
+    try {
+      const r = await proxyRpc("zks_verifyBatch", [n], me);
+      $("verify-" + n).innerHTML = r.valid ? '<span class="ok">✓ proof valid — state root verified</span>' : '<span class="err">✗ INVALID</span>';
+      log(`Verified batch #${n}: ${r.valid ? "valid" : "INVALID"}`);
+    } catch (e) { $("verify-" + n).innerHTML = `<span class="err">${e.message}</span>`; }
+  });
+}
+
+function refreshAccTable() {
+  const isAdmin = myRoles().includes("admin");
+  const rows = Object.entries(S.accounts).map(([addr, a]) => `
+    <tr><td>${a.name}</td><td class="mono">${short(addr)}</td>
+      <td>${rolesBadges(a.roles)}</td>
+      <td>${isAdmin ? fmt(a.balance) + " AMN" : "•••"}</td>
+      <td>${isAdmin ? `
+        <label style="font-size:0.75rem"><input type="checkbox" data-role="trader" data-addr="${addr}" ${a.roles.includes("trader") ? "checked" : ""}> T</label>
+        <label style="font-size:0.75rem"><input type="checkbox" data-role="auditor" data-addr="${addr}" ${a.roles.includes("auditor") ? "checked" : ""}> Au</label>
+        <label style="font-size:0.75rem"><input type="checkbox" data-role="admin" data-addr="${addr}" ${a.roles.includes("admin") ? "checked" : ""}> Ad</label>` : "—"}</td></tr>`).join("");
+  $("accTable").innerHTML = `<table><tr><th>Name</th><th>Address</th><th>Roles</th><th>Balance</th><th>Set roles</th></tr>${rows}</table>`;
+  $("accTable").querySelectorAll("input[data-role]").forEach(cb => cb.onchange = async () => {
+    const addr = cb.dataset.addr;
+    const boxes = [...$("accTable").querySelectorAll(`input[data-addr="${addr}"]`)];
+    const rr = boxes.filter(b => b.checked).map(b => b.dataset.role);
+    try { await proxyRpc("admin_setRoles", [{ addr, roles: rr }], me); log(`Roles for ${nameOf(addr)} → [${rr.join(", ")}]`); refreshAll(); }
+    catch (e) { log(`<span class="err">${e.message}</span>`); refreshAll(); }
+  });
+}
+
+function refreshAll() { refreshIdentity(); fillAccountSelects(); refreshDash(); }
+
+/* ---------- wire up ---------- */
+document.querySelectorAll(".tab").forEach(t => t.onclick = () => {
+  document.querySelectorAll(".tab").forEach(x => x.classList.remove("active"));
+  document.querySelectorAll(".panel").forEach(x => x.classList.remove("active"));
+  t.classList.add("active");
+  $("panel-" + t.dataset.tab).classList.add("active");
+});
+
+$("identitySel").onchange = (e) => { me = e.target.value; log(`Switched identity → ${nameOf(me)} ${rolesBadges(myRoles())}`); refreshDash(); };
+$("modeSel").onchange = (e) => {
+  mode = e.target.value;
+  $("netPill").textContent = mode === "sim" ? "Built-in chain" : "External RPC";
+  log(`Mode → ${mode === "sim" ? "built-in Prividium chain" : "external Proxy RPC"}`);
+};
+
+$("txSend").onclick = async () => {
+  const out = $("txResult");
+  try {
+    const h = await proxyRpc("eth_sendTransaction", [{ to: $("txTo").value, amount: $("txAmt").value, memo: $("txMemo").value }], me);
+    out.innerHTML = `<span class="ok">✓ executed off-chain in seconds</span><div class="mono">${h}</div>`;
+    log(`Transfer ${fmt($("txAmt").value)} AMN → ${nameOf($("txTo").value)} <span class="ok">ok</span>`);
+    $("txAmt").value = ""; $("txMemo").value = "";
+    refreshDash();
+  } catch (e) { out.innerHTML = `<span class="err">✗ ${e.message}</span>`; log(`<span class="err">${e.message}</span>`); }
+};
+
+$("cTotal").onclick = async () => { $("cReadOut").textContent = "totalSupply() → " + fmt(S.totalSupply) + " AMN"; };
+$("cMyBal").onclick = async () => {
+  try { $("cReadOut").textContent = "balanceOf(me) → " + await proxyRpc("eth_getBalance", [me], me); }
+  catch (e) { $("cReadOut").textContent = "✗ " + e.message; }
+};
+$("cBalOf").onclick = async () => {
+  try { $("cReadOut").textContent = `balanceOf(${nameOf($("cWho").value)}) → ` + await proxyRpc("eth_getBalance", [$("cWho").value], me); }
+  catch (e) { $("cReadOut").textContent = "✗ " + e.message; }
+};
+$("cMint").onclick = async () => {
+  try {
+    const h = await proxyRpc("amn_mint", [{ to: $("cMintTo").value, amount: $("cMintAmt").value }], me);
+    $("cWriteOut").textContent = "✓ mint tx " + h;
+    log(`Minted ${fmt($("cMintAmt").value)} AMN → ${nameOf($("cMintTo").value)}`);
+    refreshDash();
+  } catch (e) { $("cWriteOut").textContent = "✗ " + e.message; log(`<span class="err">${e.message}</span>`); }
+};
+
+$("sealBtn").onclick = async () => {
+  try {
+    const b = await proxyRpc("zks_sealBatch", [], me);
+    log(`Batch #${b.number} sealed: ${b.txCount} tx · proof anchored (sim Ethereum) ${short(b.l1TxHash)}`);
+    refreshDash();
+  } catch (e) { log(`<span class="err">${e.message}</span>`); }
+};
+
+$("accCreate").onclick = async () => {
+  const rr = [];
+  if ($("accTrader").checked) rr.push("trader");
+  if ($("accAuditor").checked) rr.push("auditor");
+  if ($("accAdmin").checked) rr.push("admin");
+  try {
+    const addr = await proxyRpc("admin_createAccount", [{ name: $("accName").value, roles: rr }], me);
+    $("accOut").innerHTML = `<span class="ok">✓ created</span> <span class="mono">${addr}</span>`;
+    log(`Account created: ${$("accName").value || "Unnamed"} [${rr.join(", ")}]`);
+    $("accName").value = "";
+    refreshAll();
+  } catch (e) { $("accOut").innerHTML = `<span class="err">✗ ${e.message}</span>`; }
+};
+
+$("resetChain").onclick = () => {
+  if (!myRoles().includes("admin")) { log('<span class="err">Reset requires Admin.</span>'); return; }
+  if (!confirm("Reset chain to genesis? All accounts, transactions and batches will be wiped.")) return;
+  localStorage.removeItem(LS_KEY); me = null; load(); refreshAll();
+  log("Chain reset to genesis.");
+};
+
+$("rpcMethod").onchange = () => { $("rpcCustom").style.display = $("rpcMethod").value === "_custom" ? "" : "none"; };
+$("rpcSend").onclick = async () => {
+  const method = $("rpcMethod").value === "_custom" ? $("rpcCustom").value.trim() : $("rpcMethod").value;
+  let params = [];
+  const p = $("rpcParams").value.trim();
+  if (p) { try { params = JSON.parse(p); } catch (e) { $("consoleOut").value = "params is not valid JSON: " + e.message; return; } }
+  try {
+    const r = mode === "sim" ? await proxyRpc(method, params, me) : await extRpc(method, params);
+    $("consoleOut").value = `→ ${method} ${JSON.stringify(params)}\n\n` + JSON.stringify(r, null, 2);
+    log(`RPC ${method} <span class="ok">ok</span>`);
+  } catch (e) {
+    $("consoleOut").value = `→ ${method} ${JSON.stringify(params)}\n\n✗ ${e.message}`;
+    log(`RPC ${method} <span class="err">${e.message}</span>`);
+  }
+};
+
+/* ---------- external / MetaMask ---------- */
+$("cfgSave").onclick = saveCfg;
+$("mmConnect").onclick = async () => {
+  if (!window.ethereum) { $("mmOut").textContent = "No wallet detected. Install MetaMask."; return; }
+  try {
+    const [a] = await window.ethereum.request({ method: "eth_requestAccounts" });
+    extAccount = a;
+    const cid = await window.ethereum.request({ method: "eth_chainId" });
+    const bal = await window.ethereum.request({ method: "eth_getBalance", params: [a, "latest"] });
+    $("mmOut").textContent = `connected ${a}\nchainId ${parseInt(cid, 16)} · balance ${(parseInt(bal, 16) / 1e18).toFixed(6)} ${cfg.sym}`;
+    log(`MetaMask connected: ${short(a)}`);
+  } catch (e) { $("mmOut").textContent = "✗ " + e.message; }
+};
+$("mmAdd").onclick = async () => {
+  saveCfg();
+  if (!window.ethereum) { $("mmOut").textContent = "No wallet detected."; return; }
+  if (!cfg.rpc || !cfg.chain) { $("mmOut").textContent = "Set Proxy RPC URL and chain ID first."; return; }
+  try {
+    await window.ethereum.request({ method: "wallet_addEthereumChain", params: [{
+      chainId: "0x" + Number(cfg.chain).toString(16),
+      chainName: "Amanah Prividium",
+      rpcUrls: [cfg.rpc],
+      nativeCurrency: { name: cfg.sym, symbol: cfg.sym, decimals: 18 },
+      blockExplorerUrls: cfg.exp ? [cfg.exp] : undefined,
+    }]});
+    $("mmOut").textContent = "✓ network added / switched in wallet";
+    log("Prividium network added to wallet.");
+  } catch (e) { $("mmOut").textContent = "✗ " + e.message; }
+};
+
+/* generic contract caller (external mode, ethers) */
+async function genericCall(write) {
+  const out = $("gOut");
+  try {
+    if (typeof ethers === "undefined") throw new Error("ethers.js not loaded (offline?)");
+    if (!window.ethereum) throw new Error("wallet required for contract calls");
+    const provider = new ethers.BrowserProvider(window.ethereum);
+    const abi = JSON.parse($("gAbi").value);
+    const args = $("gArgs").value.trim() ? $("gArgs").value.split(",").map(s => s.trim()) : [];
+    const c = new ethers.Contract($("gAddr").value.trim(), abi, write ? await provider.getSigner() : provider);
+    const r = await c[$("gFn").value.trim()](...args);
+    out.textContent = write ? "✓ tx sent: " + (r.hash || JSON.stringify(r)) : "→ " + (typeof r === "object" ? JSON.stringify(r) : String(r));
+    log(`Contract ${write ? "write" : "read"} ${$("gFn").value} <span class="ok">ok</span>`);
+  } catch (e) { out.textContent = "✗ " + e.message; }
+}
+$("gRead").onclick = () => genericCall(false);
+$("gWrite").onclick = () => genericCall(true);
+
+/* ---------- boot ---------- */
+load(); loadCfg(); refreshAll();
+log("Amanah Prividium chain ready — Proxy RPC enforcing Trader / Auditor / Admin roles. Switch identities (top right) to see permissions change.");
+</script>
+</body>
+</html>

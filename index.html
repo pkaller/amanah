@@ -55,6 +55,11 @@
     color: var(--ink-soft); text-decoration: none;
   }
   .nav-links a:hover { color: var(--emerald); }
+  .nav-links a.nav-app {
+    background: var(--gold); color: var(--emerald-deep); font-weight: 600;
+    padding: 0.45rem 0.9rem; border-radius: 2px;
+  }
+  .nav-links a.nav-app:hover { background: var(--gold-soft); color: var(--emerald-deep); }
   @media (max-width: 720px) { .nav-links { display: none; } }
 
   /* ---------- Hero ---------- */
@@ -240,6 +245,7 @@
       <a href="#problem">The Problem</a>
       <a href="#solution">How It Works</a>
       <a href="#technology">Technology</a>
+      <a class="nav-app" href="app/">Launch App</a>
     </div>
   </div>
 </nav>
