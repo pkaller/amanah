@@ -193,25 +193,19 @@
   <section class="panel" id="panel-overview">
     <h2 id="ovHello">Welcome</h2>
     <p class="sub">Amanah (AMN) — the private, Sharia-compliant, yield-bearing stablecoin.
-      Here's the public picture, and your own balance.</p>
-    <div class="grid g3">
-      <div class="card stat"><h3>Total supply</h3><b id="ovSupply">—</b><span>AMN</span></div>
+      Connect your wallet below to see <strong>your</strong> balance and send AMN.
+      Network-wide figures are further down.</p>
+    <div id="ovTokenMount"></div>
+    <div class="grid g3" style="margin-top:1.1rem">
+      <div class="card stat"><h3>Network supply</h3><b id="ovSupply">—</b><span>AMN — all holders combined</span></div>
       <div class="card stat"><h3>Transactions settled</h3><b id="ovTx">—</b><span>Off-chain, private</span></div>
       <div class="card stat"><h3>Batches anchored</h3><b id="ovBatches">—</b><span>Proofs on Ethereum</span></div>
     </div>
-    <div class="grid g2" style="margin-top:1.1rem">
-      <div class="card">
-        <h3>Your AMN</h3>
-        <p style="font-size:0.85rem;color:var(--ink-soft);margin-bottom:0.9rem">
-          Connect MetaMask in the Token tab to see your AMN balance and send transfers — that's your money, always in your hands.</p>
-        <button id="ovGoToken">Open Token &middot; MetaMask</button>
-      </div>
-      <div class="card">
-        <h3>Privacy model</h3>
-        <p style="font-size:0.85rem;color:var(--ink-soft)">Transactions execute off-chain in a private environment.
-          Only cryptographic validity proofs are anchored to Ethereum — the network stays verifiable
-          without exposing anyone's activity.</p>
-      </div>
+    <div class="card" style="margin-top:1.1rem">
+      <h3>Privacy model</h3>
+      <p style="font-size:0.85rem;color:var(--ink-soft)">Transactions execute off-chain in a private environment.
+        Only cryptographic validity proofs are anchored to Ethereum — the network stays verifiable
+        without exposing anyone's activity.</p>
     </div>
   </section>
 
@@ -323,6 +317,7 @@
     <p class="sub">Put real AMN in your wallet: deploy the AMN ERC-20 contract to a public testnet from your own
       MetaMask (you pay testnet gas — free from a faucet), add it to your token list, and transfer.
       Balances and transfers show up in MetaMask like any token.</p>
+    <div id="tokenCards">
     <div class="grid g2">
       <div class="card">
         <h3>1 &middot; Wallet &amp; network</h3>
@@ -346,7 +341,7 @@
         <p id="tkDeployHint" style="display:none;font-size:0.8rem;color:var(--ink-soft);margin-bottom:0.7rem">
           Issuance is controlled by Amanah — only the issuer's wallet can mint AMN.
           Add the token to MetaMask, then track your balance and send transfers below.</p>
-        <div class="field"><label>Token address (auto-filled after deploy — or paste an existing AMN address)</label>
+        <div class="field"><label>AMN token address</label>
           <input type="text" id="tkAddr" placeholder="0x…"></div>
         <div class="mono" id="tkDeployOut"></div>
       </div>
@@ -367,6 +362,7 @@
         </div>
         <div class="mono" id="tkTxOut" style="margin-top:0.6rem"></div>
       </div>
+    </div>
     </div>
   </section>
 
@@ -1012,8 +1008,12 @@ async function tkRefreshWallet() {
   else if (saved) $("tkAddr").value = saved;
 }
 $("tkConnect").onclick = async () => {
-  try { const [a] = await mm("eth_requestAccounts"); tkAccount = a; await tkRefreshWallet(); log(`MetaMask connected: ${short(a)}`); }
-  catch (e) { $("tkWallet").textContent = "✗ " + e.message; }
+  try {
+    const [a] = await mm("eth_requestAccounts"); tkAccount = a;
+    await tkRefreshWallet();
+    log(`MetaMask connected: ${short(a)}`);
+    if ($("tkAddr").value.trim()) $("tkBal").click();
+  } catch (e) { $("tkWallet").textContent = "✗ " + e.message; }
 };
 $("tkSepolia").onclick = async () => {
   try {
@@ -1149,9 +1149,12 @@ function applyAccess() {
   $("signOut").style.display = "";
   viewerMode = !adminEmails().includes(gUser.email.toLowerCase());
   document.querySelectorAll(".tab").forEach(t => {
-    if (viewerMode) t.classList.toggle("hidden", !["overview", "token"].includes(t.dataset.tab));
+    if (viewerMode) t.classList.toggle("hidden", t.dataset.tab !== "overview");
     else t.classList.toggle("hidden", t.dataset.tab === "overview");
   });
+  // viewers get the wallet/balance/transfer cards embedded in the Overview
+  if (viewerMode) $("ovTokenMount").appendChild($("tokenCards"));
+  else $("panel-token").appendChild($("tokenCards"));
   $("modeSel").style.display = viewerMode ? "none" : "";
   $("identitySel").style.display = viewerMode ? "none" : "";
   // viewers can connect, track balances, and transfer — but not deploy or mint
@@ -1206,7 +1209,6 @@ $("signOut").onclick = () => {
   try { google.accounts.id.disableAutoSelect(); } catch (e) {}
   location.reload();
 };
-$("ovGoToken").onclick = () => activateTab("token");
 
 /* ---------- boot ---------- */
 load(); loadCfg(); initAuth();
