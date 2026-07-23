@@ -164,12 +164,6 @@
     <div class="spacer"></div>
     <span class="pill" id="userChip" style="display:none"></span>
     <button id="signOut" class="ghost" style="display:none;border-color:rgba(230,211,163,0.5);color:var(--gold-soft)">Sign out</button>
-    <span class="pill" id="netPill">Built-in chain</span>
-    <select id="modeSel" title="Network mode">
-      <option value="sim">Built-in Prividium chain (in-browser)</option>
-      <option value="ext">External Proxy RPC (MetaMask)</option>
-    </select>
-    <select id="identitySel" title="Identity"></select>
   </div>
 </header>
 
@@ -227,7 +221,9 @@
     <p class="sub">Your view of the Amanah Prividium chain. Every call below passes through the
       <strong>Proxy RPC</strong>, which enforces your role's permissions before anything reaches the chain.</p>
     <div class="grid g4">
-      <div class="card stat"><h3>Identity</h3><b id="dIdent" style="font-size:1.05rem">—</b><span id="dRoles"></span></div>
+      <div class="card stat"><h3>Acting as <span style="text-transform:none;letter-spacing:0;font-weight:400">(demo identity)</span></h3>
+        <select id="identitySel" style="width:100%;margin:0.15rem 0 0.4rem" title="Switch which demo participant you act as"></select>
+        <span id="dRoles"></span></div>
       <div class="card stat"><h3>AMN Balance</h3><b id="dBal">—</b><span>Native token</span></div>
       <div class="card stat"><h3>Block Height</h3><b id="dBlock">—</b><span>Chain ID <span id="dChain">—</span></span></div>
       <div class="card stat"><h3>Batches Proven</h3><b id="dBatches">—</b><span>Anchored to Ethereum</span></div>
@@ -254,7 +250,7 @@
   <section class="panel" id="panel-transfer">
     <h2>Transfer AMN</h2>
     <p class="sub">Requires the <span class="badge trader">Trader</span> role. The Proxy RPC rejects transfers from
-      identities without it — try switching to the Auditor to see the rule enforced.</p>
+      identities without it — switch the demo identity on the Dashboard to the Auditor to see the rule enforced.</p>
     <div class="grid g2">
       <div class="card">
         <h3>Send</h3>
@@ -464,6 +460,16 @@
     <h2>Network</h2>
     <p class="sub">The built-in chain runs the Prividium architecture entirely in your browser.
       When your hosted Prividium deployment is live, switch to External mode and point the app at its Proxy RPC.</p>
+    <div class="card" style="margin-bottom:1.1rem">
+      <h3>Active connection <span class="badge" id="netPill" style="background:var(--emerald-deep);color:var(--gold-soft)">Built-in chain</span></h3>
+      <select id="modeSel" title="Network mode" style="margin-top:0.2rem">
+        <option value="sim">Built-in demo chain (in this browser)</option>
+        <option value="ext">External Proxy RPC (live deployment)</option>
+      </select>
+      <p style="font-size:0.8rem;color:var(--ink-soft);margin-top:0.7rem">The built-in demo chain is a complete
+        in-browser model of the Prividium architecture — the same Proxy RPC rules, roles, and batch proofs,
+        holding no real funds. Real AMN lives in the Token &middot; MetaMask tab.</p>
+    </div>
     <div class="grid g2">
       <div class="card">
         <h3>Built-in chain</h3>
@@ -547,7 +553,7 @@ function genesis() {
   return {
     chainId: CHAIN_ID,
     accounts: {
-      [admin]:  { name: "Treasury (genesis)", roles: ["admin", "trader"], balance: 1_000_000, nonce: 0 },
+      [admin]:  { name: "Treasury — issuer", roles: ["admin", "trader"], balance: 1_000_000, nonce: 0 },
       [trader]: { name: "Demo Trader",        roles: ["trader"],          balance: 5_000,     nonce: 0 },
       [auditor]:{ name: "Demo Auditor",       roles: ["auditor"],         balance: 0,         nonce: 0 },
     },
@@ -560,7 +566,14 @@ function genesis() {
 }
 function save() { localStorage.setItem(LS_KEY, JSON.stringify(S)); }
 function load() {
-  try { const raw = localStorage.getItem(LS_KEY); if (raw) { S = JSON.parse(raw); return; } } catch (e) {}
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    if (raw) {
+      S = JSON.parse(raw);
+      Object.values(S.accounts).forEach(a => { if (a.name === "Treasury (genesis)") a.name = "Treasury — issuer"; });
+      return;
+    }
+  } catch (e) {}
   S = genesis(); save();
 }
 
@@ -760,7 +773,6 @@ function fillAccountSelects() {
 
 function refreshDash() {
   const a = S.accounts[me];
-  $("dIdent").textContent = a ? a.name : "—";
   $("dRoles").innerHTML = rolesBadges(myRoles());
   $("dBal").textContent = a ? fmt(a.balance) : "—";
   $("dBlock").textContent = S.blocks.length;
